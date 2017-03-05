@@ -117,6 +117,7 @@ def get_photo(id = None):
     photo = None
     if id is not None:
         photo = mongo.db.photos.find_one({'slug':id},{'_id': False })
+        photo['summary'] = util.summary_text(photo['body'])
         return jsonify(photo)
     #if photo is None:
     #    return jsonify({'error':'No photo found'})
