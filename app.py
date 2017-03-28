@@ -6,6 +6,7 @@ import pymongo
 import logging
 from datetime import datetime
 from dbapi import util
+import random
 
 app = Flask(__name__)
 app.config['MONGO_URI'] = siteconfig.MONGO_URI
@@ -16,11 +17,41 @@ logger = logging.getLogger('app')
 
 
 
+
+@app.route('/dbapi/api/v1.0/frontpageservice/<size>', methods=['GET'])
+def frontpageservice(size):
+    """ Returns a JSON String of the images included in the
+        frontpage image rotation.  The order of the list is
+        randomized
+    """
+    #imagelist = [{'url':'https://s3.amazonaws.com/visualintrigue-3556/92ff9249-ca37-48ed-aa65-c5e0f7a6b66b_lowrez_1600px.jpeg'}]
+    imagelist = []
+    photos = mongo.db.photos.find({'homepage':'yes','status':'active'})
+    if photos is None:
+        return jsonify(imagelist)
+
+    tlist = []
+
+    for photo in photos:
+        if size in photo['files']:
+            tlist.append(siteconfig.AMAZON_BASE_URL + photo['files'][size]['path'])
+
+    i = len(tlist)-1
+
+    while i > 1:
+        j = random.randrange(i)  # 0 <= j <= i
+        tlist[j], tlist[i] = tlist[i], tlist[j]
+        i = i - 1
+
+    for t in tlist:
+        imagelist.append({'url':t})
+
+    return jsonify({'urls':imagelist})
+
+
 @app.route('/dbapi/api/v1.0/frontpage', methods=['GET'])
 def get_frontpage():
     """ Get the list of results for the frontpage"""
-
-
 
     stories = []
     #blogs = mongo.db.blog.find({'status':'active','homepage':'yes'}).sort("created",-1)
@@ -71,6 +102,11 @@ def get_listarticles():
       article['created'] = datetime.strftime(article['created'],'%Y-%m-%dT%H:%M:%S.%fZ')
       new_articles.append(article)
     return jsonify(new_articles)
+
+@app.route('/dbapi/api/v1.0/article/<id>',methods=['GET'])
+def get_article(id):
+    article = mongo.db.articles.find_one({'slug':id})
+    return jsonify(article)
 
 
 @app.route('/dbapi/api/v1.0/listportfolios/<portfolio>', methods=['GET'])
