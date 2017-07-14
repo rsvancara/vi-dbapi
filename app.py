@@ -15,9 +15,6 @@ mongo = PyMongo(app)
 
 logger = logging.getLogger('app')
 
-
-
-
 @app.route('/dbapi/api/v1.0/frontpageservice/<size>', methods=['GET'])
 def frontpageservice(size):
     """ Returns a JSON String of the images included in the
@@ -106,8 +103,11 @@ def get_listarticles():
 @app.route('/dbapi/api/v1.0/article/<id>',methods=['GET'])
 def get_article(id):
     article = mongo.db.articles.find_one({'slug':id})
-    return jsonify(article)
-
+    article.pop('_id')
+    try:
+      return jsonify(article)
+    except Exception as e:
+      return jsonify({"title":"Error Finding Article","body":"Oh No!  There was an error finding this article.  We are terribly sorry. ","headerurl":" ","teaserurl":" "})
 
 @app.route('/dbapi/api/v1.0/listportfolios/<portfolio>', methods=['GET'])
 def get_portfolioslist_for_id(portfolio="all"):
@@ -161,15 +161,14 @@ def get_photo(id = None):
     #image_url = siteconfig.AMAZON_BASE_URL + photo['files']['large']['path']
     #lowrez_url = siteconfig.AMAZON_BASE_URL + photo["files"]['lrlarge']['path']
 
+    photo.pop('_id')
     return jsonify({"error":"No result found"})
     #return render_template('photo.html',title=photo['title'],photo=photo,image_url=image_url,lowrez_url=lowrez_url)
      
 
 if __name__ == '__main__':
 
-
     app.debug = True
-
 
     if app.debug == True:
         logger.setLevel(logging.DEBUG)
@@ -191,7 +190,5 @@ if __name__ == '__main__':
     logger.addHandler(handler)
 
     logger.info("Application started")
-
-
 
     app.run(host="0.0.0.0",port=8888,debug=True)
