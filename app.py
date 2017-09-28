@@ -23,7 +23,7 @@ def frontpageservice(size):
     """
     #imagelist = [{'url':'https://s3.amazonaws.com/visualintrigue-3556/92ff9249-ca37-48ed-aa65-c5e0f7a6b66b_lowrez_1600px.jpeg'}]
     imagelist = []
-    photos = mongo.db.photos.find({'homepage':'yes','status':'active'})
+    photos = mongo.db.photos.find({'homepage':'yes','status':'active','coverphoto':'yes'})
     if photos is None:
         return jsonify(imagelist)
 
@@ -85,6 +85,56 @@ def get_frontpage():
 
     return jsonify(sorted_stories)
 
+@app.route('/dbapi/api/v1.1/getfrontpage/<page>', methods=['GET'])
+def getfrontpage(page = 0):
+    """ Get the list of results for the frontpage as a json string"""
+
+    pagesize = 100 
+    try:
+
+        page = int(page)
+
+    except Exception as e:
+        return(jsonify({'status':'error',"message":"Error converting page to integer value"}))
+    stories = []
+    #blogs = mongo.db.blog.find({'status':'active','homepage':'yes'}).sort("created",-1)
+
+    collections = mongo.db.collections.find({'status':'active'}).sort("created",-1)
+
+    for c in collections:
+        photos = mongo.db.photos.find({'status':'active','collection':c['collection'],'homepage':'yes'}).sort('displayorder').limit(1)
+
+        for b in photos:
+
+            b['ctitle'] = c['title']
+            b['cslug'] = c['slug']
+            b['created'] = datetime.strftime(c['created'],'%Y-%m-%dT%H:%M:%S.%fZ')
+            b['summary'] = util.summary_text(c['body'])
+            b['type'] = 'photo'
+            b.pop('_id')
+            stories.append(b)
+            break
+
+    articles = mongo.db.articles.find({'status':'active'}).sort("created",-1)
+
+    for a in articles:
+        r = {}
+        r['created'] = datetime.strftime(a['created'],'%Y-%m-%dT%H:%M:%S.%fZ')
+        r['summary'] = util.summary_text(a['body'])
+        r['cslug'] = a['slug']
+        r['type'] = 'article'
+        r['title'] = a['title']
+        r['teaserurl'] = a['teaserurl']
+        stories.append(r)
+
+    sorted_stories = sorted(stories,key=lambda x:x['created'],reverse=True)
+    
+    lower_bound = page * pagesize
+    upper_bound = page * pagesize + (pagesize - 1)
+    
+    # Return the slice we are interested in
+    return jsonify(sorted_stories[lower_bound:upper_bound])
+    #return jsonify(sorted_stories)
 
 @app.route('/dbapi/api/v1.0/listarticles', methods=['GET'])
 def get_listarticles():
@@ -115,9 +165,9 @@ def get_portfolioslist_for_id(portfolio="all"):
     photos = None
 
     if portfolio != 'all':
-        photos = mongo.db.photos.find({'status':'active','homepage':'yes','portfolio':portfolio},{'_id': False }).sort("created",-1)
+        photos = mongo.db.photos.find({'status':'active','portfolio':portfolio},{'_id': False }).sort("created",-1)
     else:
-        photos = mongo.db.photos.find({'status':'active','homepage':'yes'},{'_id': False }).sort("created",-1)
+        photos = mongo.db.photos.find({'status':'active'},{'_id': False }).sort("created",-1)
     if photos is not None:   
         
         return jsonify(list(photos))
