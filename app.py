@@ -1,5 +1,5 @@
 #!/usr/bin/python
-from flask import Flask, jsonify
+from flask import Flask, jsonify, abort, request
 from flask.ext.pymongo import PyMongo
 from dbapi import siteconfig
 import pymongo
@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 from dbapi import util
 import random
+from functools import wraps
 
 app = Flask(__name__)
 app.config['MONGO_URI'] = siteconfig.MONGO_URI
@@ -15,7 +16,21 @@ mongo = PyMongo(app)
 
 logger = logging.getLogger('app')
 
+# The actual decorator function
+def require_appkey(view_function):
+    @wraps(view_function)
+    # the new, post-decoration function. Note *args and **kwargs here.
+    def decorated_function(*args, **kwargs):
+        if request.args.get('key') and authenticate_api(request.args.get('key')):
+            return view_function(*args, **kwargs)
+        else:
+            abort(401)
+    return decorated_function
+
+
+
 @app.route('/dbapi/api/v1.0/frontpageservice/<size>', methods=['GET'])
+@require_appkey
 def frontpageservice(size):
     """ Returns a JSON String of the images included in the
         frontpage image rotation.  The order of the list is
@@ -47,6 +62,7 @@ def frontpageservice(size):
 
 
 @app.route('/dbapi/api/v1.0/frontpage', methods=['GET'])
+@require_appkey
 def get_frontpage():
     """ Get the list of results for the frontpage"""
 
@@ -64,7 +80,7 @@ def get_frontpage():
             b['cslug'] = c['slug']
             b['created'] = datetime.strftime(c['created'],'%Y-%m-%dT%H:%M:%S.%fZ')
             b['summary'] = util.summary_text(c['body'])
-            b['type'] = 'photo'
+            b['type'] = 'Story'
             b.pop('_id')
             stories.append(b)
             break
@@ -76,7 +92,7 @@ def get_frontpage():
         r['created'] = datetime.strftime(a['created'],'%Y-%m-%dT%H:%M:%S.%fZ')
         r['summary'] = util.summary_text(a['body'])
         r['cslug'] = a['slug']
-        r['type'] = 'article'
+        r['type'] = 'Article'
         r['title'] = a['title']
         r['teaserurl'] = a['teaserurl']
         stories.append(r)
@@ -86,6 +102,7 @@ def get_frontpage():
     return jsonify(sorted_stories)
 
 @app.route('/dbapi/api/v1.1/getfrontpage/<page>', methods=['GET'])
+@require_appkey
 def getfrontpage(page = 0):
     """ Get the list of results for the frontpage as a json string"""
 
@@ -137,6 +154,7 @@ def getfrontpage(page = 0):
     #return jsonify(sorted_stories)
 
 @app.route('/dbapi/api/v1.0/listarticles', methods=['GET'])
+@require_appkey
 def get_listarticles():
     """ Get the list of articles from the database"""
 
@@ -151,6 +169,7 @@ def get_listarticles():
     return jsonify(new_articles)
 
 @app.route('/dbapi/api/v1.0/article/<id>',methods=['GET'])
+@require_appkey
 def get_article(id):
     article = mongo.db.articles.find_one({'slug':id})
     article.pop('_id')
@@ -160,6 +179,7 @@ def get_article(id):
       return jsonify({"title":"Error Finding Article","body":"Oh No!  There was an error finding this article.  We are terribly sorry. ","headerurl":" ","teaserurl":" "})
 
 @app.route('/dbapi/api/v1.0/listportfolios/<portfolio>', methods=['GET'])
+@require_appkey
 def get_portfolioslist_for_id(portfolio="all"):
     """ Get the list of articles from the database"""
     photos = None
@@ -175,6 +195,7 @@ def get_portfolioslist_for_id(portfolio="all"):
     return jsonify([])
  
 @app.route('/dbapi/api/v1.0/getstory/<id>')
+@require_appkey
 def get_stories(id = None):
     """ Collection Detail Display """
     collection = None
@@ -196,6 +217,7 @@ def get_stories(id = None):
     return jsonify({'collection':collection,'photos':list(photos),'firstphoto': firstphoto})
 
 @app.route('/dbapi/api/v1.0/getphoto/<id>')
+@require_appkey
 def get_photo(id = None):
     """
     Photo Detail
@@ -214,7 +236,27 @@ def get_photo(id = None):
     photo.pop('_id')
     return jsonify({"error":"No result found"})
     #return render_template('photo.html',title=photo['title'],photo=photo,image_url=image_url,lowrez_url=lowrez_url)
-     
+
+@app.route('/dbapi/api/v1.0/test', methods=['PUT','GET'])
+@require_appkey
+def apitest():
+    return jsonify({'status':'succuess'})
+
+@app.route('/dbapi/api/v1.0/testkey/<key>')
+def test_key(key):
+    if authenticate_api(key):
+      return jsonify({'status':'success'})
+    return jsonify({'status':'failure'})
+
+
+def authenticate_api(key):
+    """
+    Test if the API Key is valid
+    """
+    keyobj = mongo.db.apikey.find_one({'key':key},{'_id': False })
+    if keyobj is not None:
+        return True
+    return False
 
 if __name__ == '__main__':
 
