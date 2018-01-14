@@ -18,7 +18,7 @@ Get the list of items to display in the conntiuous scroll
 
 /dbapi/api/v1.0/frontpage
 
-##Front Page (Paginated List)
+## Front Page (Paginated List)
 
 Older API for getting a paginated list of items for disply 
 
